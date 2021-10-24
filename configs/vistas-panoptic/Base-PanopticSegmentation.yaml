@@ -1,0 +1,56 @@
+MODEL:
+  BACKBONE:
+    FREEZE_AT: 0
+    NAME: "build_resnet_backbone"
+  WEIGHTS: "detectron2://ImageNetPretrained/torchvision/R-50.pkl"
+  PIXEL_MEAN: [123.675, 116.280, 103.530]
+  PIXEL_STD: [58.395, 57.120, 57.375]
+  RESNETS:
+    DEPTH: 50
+    STEM_TYPE: "basic"  # not used
+    STEM_OUT_CHANNELS: 64
+    STRIDE_IN_1X1: False
+    OUT_FEATURES: ["res2", "res3", "res4", "res5"]
+    # NORM: "SyncBN"
+    RES5_MULTI_GRID: [1, 1, 1]  # not used
+DATASETS:
+  TRAIN: ("vistas_train",)
+  TEST: ("vistas_val",)
+SOLVER:
+  IMS_PER_BATCH: 1
+  ACCUMULATIONS: 16
+  BASE_LR: 0.0001
+  MAX_ITER: 9210000  # 7,000,000 # 300 epochs (5400000) # 3x schedule (270,000 grad steps)
+  STEPS: (8010000, 9010000) #(8000000, )  # 6,000,000 # 250 epochs (4500000) # 3x schedule (reduce lr by factor of 10 last 60k and 20k iters)
+  WARMUP_FACTOR: 1.0
+  WARMUP_ITERS: 10
+  WEIGHT_DECAY: 0.0001
+  OPTIMIZER: "ADAMW"
+  BACKBONE_MULTIPLIER: 0.1
+  CLIP_GRADIENTS:
+    ENABLED: True
+    CLIP_TYPE: "full_model"
+    CLIP_VALUE: 0.01
+    NORM_TYPE: 2.0
+  CHECKPOINT_PERIOD: 10000
+INPUT:
+  MIN_SIZE_TRAIN: !!python/object/apply:eval ["[int(x * 0.1 * 1024) for x in range(5, 21)]"]
+  MIN_SIZE_TRAIN_SAMPLING: "choice"
+  MIN_SIZE_TEST: 512
+  MAX_SIZE_TRAIN: 4096
+  MAX_SIZE_TEST: 1024
+  CROP:
+    ENABLED: True
+    TYPE: "absolute"
+    SIZE: (512, 1024)
+  COLOR_AUG_SSD: True
+  FORMAT: "RGB"
+  DATASET_MAPPER_NAME: "mask_former_panoptic"
+  RANDOM_FLIP: none  # horizontal : for the first 8,000,000 steps none
+TEST:
+  EVAL_PERIOD: 10000
+DATALOADER:
+  FILTER_EMPTY_ANNOTATIONS: True
+  NUM_WORKERS: 8
+VERSION: 2
+SEED: 161  # 24

@@ -1,6 +1,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates.
 from typing import Tuple
 
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -188,8 +189,8 @@ class MaskFormer(nn.Module):
 
             return losses
         else:
-            mask_cls_results = outputs["pred_logits"]
-            mask_pred_results = outputs["pred_masks"]
+            mask_cls_results = outputs["pred_logits"].half()
+            mask_pred_results = outputs["pred_masks"].half()
             # upsample masks
             mask_pred_results = F.interpolate(
                 mask_pred_results,
@@ -242,6 +243,11 @@ class MaskFormer(nn.Module):
     def semantic_inference(self, mask_cls, mask_pred):
         mask_cls = F.softmax(mask_cls, dim=-1)[..., :-1]
         mask_pred = mask_pred.sigmoid()
+        # sub_semseg = []
+        # for i in (0, mask_cls.shape[1], 20):
+        #     sub_mask_cls = mask_cls[:, i:i+20]
+        #     sub_semseg.append(torch.einsum("qc,qhw->chw", sub_mask_cls, mask_pred))
+        # semseg = torch.cat(sub_semseg, 0)
         semseg = torch.einsum("qc,qhw->chw", mask_cls, mask_pred)
         return semseg
 

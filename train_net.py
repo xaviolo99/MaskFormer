@@ -24,7 +24,7 @@ from detectron2.evaluation import (
     COCOEvaluator,
     COCOPanopticEvaluator,
     DatasetEvaluators,
-    SemSegEvaluator,
+    #SemSegEvaluator,
     verify_results,
 )
 from detectron2.projects.deeplab import add_deeplab_config, build_lr_scheduler
@@ -39,6 +39,8 @@ from mask_former import (
     SemanticSegmentorWithTTA,
     add_mask_former_config,
 )
+
+from parallel_semseg_evaluator import SemSegEvaluator
 
 
 class Trainer(DefaultTrainer):
@@ -130,7 +132,7 @@ class Trainer(DefaultTrainer):
 
         defaults = {}
         defaults["lr"] = cfg.SOLVER.BASE_LR
-        defaults["weight_decay"] = cfg.SOLVER.WEIGHT_DECAY
+        defaults["weight_decay"] = cfg.SOLVER.WEIGHT_DECAY  # * cfg.SOLVER.ACCUMULATIONS
 
         norm_module_types = (
             torch.nn.BatchNorm1d,
@@ -189,13 +191,29 @@ class Trainer(DefaultTrainer):
 
             return FullModelGradientClippingOptimizer if enable else optim
 
+        def add_gradient_accumulation(optim):
+            class GradientAccumulatorOptimizer(optim):
+                def __init__(self, *args, **kwargs):
+                    super().__init__(*args, **kwargs)
+                    self.count = 0
+                def zero_grad(self):
+                    if self.count % cfg.SOLVER.ACCUMULATIONS == 0:
+                        #print("zeroed gradients!")
+                        super().zero_grad()
+                def step(self):
+                    self.count += 1
+                    if self.count % cfg.SOLVER.ACCUMULATIONS == 0:
+                        #print("step!")
+                        super().step()
+            return GradientAccumulatorOptimizer
+
         optimizer_type = cfg.SOLVER.OPTIMIZER
         if optimizer_type == "SGD":
-            optimizer = maybe_add_full_model_gradient_clipping(torch.optim.SGD)(
+            optimizer = add_gradient_accumulation(maybe_add_full_model_gradient_clipping(torch.optim.SGD))(
                 params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM
             )
         elif optimizer_type == "ADAMW":
-            optimizer = maybe_add_full_model_gradient_clipping(torch.optim.AdamW)(
+            optimizer = add_gradient_accumulation(maybe_add_full_model_gradient_clipping(torch.optim.AdamW))(
                 params, cfg.SOLVER.BASE_LR
             )
         else:

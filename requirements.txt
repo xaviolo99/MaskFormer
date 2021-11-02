@@ -3,3 +3,9 @@ scipy
 shapely
 timm
 h5py
+detectron2
+pymongo
+torch
+zstd
+PIL
+numpy

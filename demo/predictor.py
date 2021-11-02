@@ -36,7 +36,7 @@ class VisualizationDemo(object):
         else:
             self.predictor = DefaultPredictor(cfg)
 
-    def run_on_image(self, image):
+    def run_on_image(self, image, only_prediction=False):
         """
         Args:
             image (np.ndarray): an image of shape (H, W, C) (in BGR order).
@@ -47,9 +47,14 @@ class VisualizationDemo(object):
         """
         vis_output = None
         predictions = self.predictor(image)
+
         # Convert image from OpenCV BGR format to Matplotlib RGB format.
-        image = image[:, :, ::-1]
-        visualizer = Visualizer(image, self.metadata, instance_mode=self.instance_mode)
+        if only_prediction:
+            visualizer = None
+        else:
+            image = image[:, :, ::-1]
+            visualizer = Visualizer(image, self.metadata, instance_mode=self.instance_mode)
+
         if "panoptic_seg" in predictions:
             panoptic_seg, segments_info = predictions["panoptic_seg"]
             vis_output = visualizer.draw_panoptic_seg_predictions(
@@ -57,9 +62,12 @@ class VisualizationDemo(object):
             )
         else:
             if "sem_seg" in predictions:
-                vis_output = visualizer.draw_sem_seg(
-                    predictions["sem_seg"].argmax(dim=0).to(self.cpu_device)
-                )
+                if only_prediction:
+                    vis_output = predictions["sem_seg"].argmax(dim=0).to(torch.uint8).to(self.cpu_device)
+                else:
+                    vis_output = visualizer.draw_sem_seg(
+                        predictions["sem_seg"].argmax(dim=0).to(self.cpu_device)
+                    )
             if "instances" in predictions:
                 instances = predictions["instances"].to(self.cpu_device)
                 vis_output = visualizer.draw_instance_predictions(predictions=instances)

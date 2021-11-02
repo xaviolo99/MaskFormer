@@ -2,6 +2,12 @@ RUN:
 
 python demo/demo.py \
 --config-file configs/mapillary-vistas-65-v2/maskformer_panoptic_swin_base_transfer.yaml \
+--input exs/*.jpg \
+--output exs/lol \
+--opts MODEL.WEIGHTS output/model_final.pth \
+
+python demo/demo.py \
+--config-file configs/mapillary-vistas-65-v2/maskformer_panoptic_swin_base_transfer.yaml \
 --input exs/k1.jpg exs/k2.jpg exs/k3.jpg exs/k4.jpg \
 --output exs/k \
 --opts MODEL.WEIGHTS output/model_final.pth \

@@ -8,7 +8,6 @@ from PIL import Image
 import zstd
 from torch.utils.data import Dataset, DataLoader
 from pymongo import MongoClient
-
 from detectron2.config import get_cfg
 from detectron2.projects.deeplab import add_deeplab_config
 from detectron2.utils.logger import setup_logger
@@ -22,7 +21,7 @@ from mask_former.data.datasets.register_mapillary_vistas import MAPILLARY_VISTAS
 from demo.predictor import VisualizationDemo
 
 
-# StreetView structures
+# Panoramator structures
 
 class PanoramaDataset(Dataset):
 
@@ -49,9 +48,9 @@ class PanoramaDataset(Dataset):
         if type(self.kluster) == tuple:
             self.kluster = Kluster(session=MongoClient(*self.kluster))
         segment_id, line_idx, panorama_idx, panorama_id = self.panoramas[idx]
-        panorama = main_kluster.kluster["street_view"].find_one({"_id": panorama_id})
+        panorama = self.kluster.kluster["street_view"].find_one({"_id": panorama_id})
         shards = mongo_to_shards(panorama["panorama"])
-        panoramator = Panoramator(shards=shards)
+        panoramator = Panoramator(shards=shards, atomic_resolution=panorama["resolution"][0]//16)
         panoramator.build_state()
         projections = [(projection_meta, panoramator.get_projection(projection_meta))
                        for projection_meta in self.projections]
@@ -102,7 +101,10 @@ def setup_cfg(args):
 # IN https://docs.python.org/3/library/multiprocessing.html UNDER `The Process` class IS ALL THE INFO NEEDED
 def process_image(model, image, quantization):
     # t0 = time.time()
-    predictions = model(image.numpy())
+    if type(image) == torch.Tensor:  # When using a DataLoader, Tensors instead of arrays will be given
+        image = image.numpy()
+    image = image[:, :, ::-1]  # VERY IMPORTANT! CONVERT IMAGE FROM RGB (PIL format) TO BGR (model format)
+    predictions = model(image)
     # t1 = time.time()
     segmentation = predictions["sem_seg"].argmax(dim=0).to(torch.uint8).cpu()
     segmentation = np.moveaxis(segmentation.numpy(), 0, -1)
@@ -127,11 +129,10 @@ def process_image(model, image, quantization):
 # Constants
 
 Args = namedtuple("Args", "config_file opts")
-MONGO_SESSION_ARGS = ("localhost", 27017)
-PREDICTION_KEYWORD = "mapillary_semantic"
 CONFIG = "configs/mapillary-vistas-65-v2/maskformer_panoptic_swin_base_transfer.yaml"
 WEIGHTS = "output/model_final.pth"
-QUANTIZATION = 40
+MONGO_SESSION_ARGS = ("localhost", 27017)
+PREDICTION_KEYWORD = "mapillary_semantic"
 TIMEOUT = 180
 PROJECTIONS = [Projection(center_horizontal=0, center_vertical=0, fov_horizontal=92.5, fov_vertical=71.37,
                           full_resolution_x=1280, full_resolution_y=880,
@@ -141,6 +142,7 @@ PROJECTIONS = [Projection(center_horizontal=0, center_vertical=0, fov_horizontal
                           offset_x=0, offset_y=880 - 640, resolution_x=1280, resolution_y=640)]
 MIN_LAT, MAX_LAT = 41.35, 41.5
 MIN_LON, MAX_LON = 2.1, 2.3
+QUANTIZATION = 40
 # CATEGORIES = [category["name"] for category in MAPILLARY_VISTAS_SEM_SEG_CATEGORIES]
 
 

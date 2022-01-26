@@ -142,9 +142,8 @@ def process_image(model, image, plot=False):
                       torch.ByteTensor([24])[0].cuda(), seg)
     t2 = time.time()
 
-    segmentation = np.moveaxis(seg.cpu().numpy(), 0, -1)
     buffer = io.BytesIO()
-    Image.fromarray(segmentation).save(buffer, format="PNG")
+    Image.fromarray(seg.cpu().numpy()).save(buffer, format="PNG")
     segmentation = buffer.getvalue()
     t3 = time.time()
 
